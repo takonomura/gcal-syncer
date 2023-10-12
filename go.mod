@@ -4,6 +4,7 @@ go 1.21.1
 
 require (
 	golang.org/x/oauth2 v0.13.0
+	golang.org/x/sync v0.3.0
 	google.golang.org/api v0.145.0
 )
 
