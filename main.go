@@ -4,9 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
 	"google.golang.org/api/option"
@@ -36,7 +39,18 @@ func main() {
 		log.Fatalf("preparing google client: %+v", err)
 	}
 
-	svc, err := calendar.NewService(ctx, option.WithHTTPClient(client))
+	retryClient := retryablehttp.NewClient()
+	retryClient.HTTPClient = client
+	retryClient.Logger = &retryClientLogger{}
+	retryClient.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+		if err == nil && resp.StatusCode == 403 {
+			// Rate Limit Exceeded
+			return true, nil
+		}
+		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	}
+
+	svc, err := calendar.NewService(ctx, option.WithHTTPClient(retryClient.StandardClient()))
 	if err != nil {
 		log.Fatalf("preparing calendar service: %+v", err)
 	}
@@ -53,4 +67,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+type retryClientLogger struct{}
+
+func (l *retryClientLogger) Printf(format string, v ...interface{}) {
+	if strings.HasPrefix(format, "[DEBUG] ") {
+		// Do not print debug logs
+		return
+	}
+	log.Printf(format, v...)
 }
