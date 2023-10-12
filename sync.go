@@ -19,7 +19,7 @@ type Config struct {
 		Prefix string `json:"prefix"`
 	} `json:"source_calendars"`
 	TargetCalendarID   string   `json:"target_calendar_id"`
-	ExcludeCalendarIDs []string `json:"exclude_calendar_ids"`
+	DetailsCalendarIDs []string `json:"details_calendar_ids"`
 
 	BusyOnly bool   `json:"busy_only,omitempty"`
 	Mask     string `json:"mask,omitempty"`
@@ -66,7 +66,7 @@ func (s *Syncer) list(ctx context.Context, calID string, fn func(*calendar.Event
 	})
 }
 
-func (s *Syncer) buildEvent(base, original *calendar.Event, prefix string) *calendar.Event {
+func (s *Syncer) buildEvent(base, details, original *calendar.Event, prefix string) *calendar.Event {
 	if base != nil {
 		modified := new(calendar.Event)
 		*modified = *base
@@ -81,7 +81,11 @@ func (s *Syncer) buildEvent(base, original *calendar.Event, prefix string) *cale
 		Transparency: original.Transparency,
 	}
 
-	if s.Config.Mask == "" {
+	if details != nil {
+		e.Summary = details.Summary
+		e.Description = details.Description
+		e.Location = details.Location
+	} else if s.Config.Mask == "" {
 		e.Summary = original.Summary
 		e.Description = original.Description
 		e.Location = original.Location
@@ -105,6 +109,20 @@ func (s *Syncer) equalEvent(a, b *calendar.Event) bool {
 }
 
 func (s *Syncer) Sync(ctx context.Context) error {
+	details := make(map[string]*calendar.Event)
+	for _, calID := range s.Config.DetailsCalendarIDs {
+		log.Printf("listing details calendar %q", calID)
+
+		err := s.list(ctx, calID, func(e *calendar.Event) error {
+			id := s.icalUID(e)
+			details[id] = e
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("listing calendar %q: %w", calID, err)
+		}
+	}
+
 	updates := make(map[string]*calendar.Event)
 	for _, cal := range s.Config.SourceCalendars {
 		log.Printf("listing source calendar %q", cal.ID)
@@ -114,24 +132,11 @@ func (s *Syncer) Sync(ctx context.Context) error {
 				return nil
 			}
 			id := s.icalUID(e)
-			updates[id] = s.buildEvent(updates[id], e, cal.Prefix)
+			updates[id] = s.buildEvent(updates[id], details[id], e, cal.Prefix)
 			return nil
 		})
 		if err != nil {
 			return fmt.Errorf("listing calendar %q: %w", cal.ID, err)
-		}
-	}
-
-	for _, calID := range s.Config.ExcludeCalendarIDs {
-		log.Printf("listing exclude calendar %q", calID)
-
-		err := s.list(ctx, calID, func(e *calendar.Event) error {
-			id := s.icalUID(e)
-			delete(updates, id)
-			return nil
-		})
-		if err != nil {
-			return fmt.Errorf("listing calendar %q: %w", calID, err)
 		}
 	}
 
