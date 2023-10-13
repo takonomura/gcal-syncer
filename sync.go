@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 
 	"golang.org/x/sync/semaphore"
@@ -144,6 +145,9 @@ func (s *Syncer) Sync(ctx context.Context) error {
 	var deletes []string
 	err := s.list(ctx, s.Config.TargetCalendarID, func(e *calendar.Event) error {
 		id := e.ICalUID
+		if !strings.HasSuffix(id, "@"+s.Config.ID) {
+			return nil
+		}
 		if desired, ok := updates[id]; !ok {
 			delete(updates, id)
 			deletes = append(deletes, e.Id)
