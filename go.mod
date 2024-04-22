@@ -6,7 +6,7 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.5
 	golang.org/x/oauth2 v0.19.0
 	golang.org/x/sync v0.7.0
-	google.golang.org/api v0.175.0
+	google.golang.org/api v0.176.0
 )
 
 require (
