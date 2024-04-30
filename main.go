@@ -19,18 +19,27 @@ import (
 func main() {
 	ctx := context.Background()
 
-	var config Config
-	if err := json.Unmarshal([]byte(os.Getenv("GCAL_SYNCER_CONFIG")), &config); err != nil {
-		log.Fatalf("loading config: %+v", err)
+	s := &Syncer{
+		UpdateConcurrency: 10,
 	}
 
-	concurrency := int64(10)
+	if env := os.Getenv("GCAL_SYNCER_TIME_MIN"); env != "" {
+		s.TimeMin = env
+	}
+	if env := os.Getenv("GCAL_SYNCER_TIME_MAX"); env != "" {
+		s.TimeMax = env
+	}
+
+	if err := json.Unmarshal([]byte(os.Getenv("GCAL_SYNCER_CONFIG")), &s.Config); err != nil {
+		log.Fatalf("failed to parse config: %+v", err)
+	}
+
 	if env := os.Getenv("GCAL_SYNCER_UPDATE_CONCURRENCY"); env != "" {
 		i, err := strconv.ParseInt(env, 10, 64)
 		if err != nil {
 			log.Fatalf("parsing update concurrency: %+v", err)
 		}
-		concurrency = i
+		s.UpdateConcurrency = i
 	}
 
 	log.Printf("connecting to Google")
@@ -38,15 +47,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to prepare calendar service: %+v", err)
 	}
+	s.Service = svc
 
-	s := &Syncer{
-		Service:           svc,
-		Config:            config,
-		TimeMin:           os.Getenv("GCAL_SYNCER_TIME_MIN"),
-		TimeMax:           os.Getenv("GCAL_SYNCER_TIME_MAX"),
-		UpdateConcurrency: concurrency,
-	}
-
+	log.Printf("syncing calendars")
 	err = s.Sync(ctx)
 	if err != nil {
 		log.Fatal(err)
