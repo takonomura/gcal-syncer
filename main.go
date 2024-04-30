@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -33,26 +34,9 @@ func main() {
 	}
 
 	log.Printf("connecting to Google")
-
-	client, err := google.DefaultClient(ctx, calendar.CalendarEventsScope)
+	svc, err := NewCalendarService(ctx)
 	if err != nil {
-		log.Fatalf("preparing google client: %+v", err)
-	}
-
-	retryClient := retryablehttp.NewClient()
-	retryClient.HTTPClient = client
-	retryClient.Logger = &retryClientLogger{}
-	retryClient.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-		if err == nil && resp.StatusCode == 403 {
-			// Rate Limit Exceeded
-			return true, nil
-		}
-		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
-	}
-
-	svc, err := calendar.NewService(ctx, option.WithHTTPClient(retryClient.StandardClient()))
-	if err != nil {
-		log.Fatalf("preparing calendar service: %+v", err)
+		log.Fatalf("failed to prepare calendar service: %+v", err)
 	}
 
 	s := &Syncer{
@@ -77,4 +61,28 @@ func (l *retryClientLogger) Printf(format string, v ...interface{}) {
 		return
 	}
 	log.Printf(format, v...)
+}
+
+func NewCalendarService(ctx context.Context) (*calendar.Service, error) {
+	client, err := google.DefaultClient(ctx, calendar.CalendarEventsScope)
+	if err != nil {
+		return nil, fmt.Errorf("default google client: %w", err)
+	}
+
+	retryClient := retryablehttp.NewClient()
+	retryClient.HTTPClient = client
+	retryClient.Logger = &retryClientLogger{}
+	retryClient.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+		if err == nil && resp.StatusCode == 403 {
+			// Rate Limit Exceeded
+			return true, nil
+		}
+		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	}
+
+	svc, err := calendar.NewService(ctx, option.WithHTTPClient(retryClient.StandardClient()))
+	if err != nil {
+		return nil, fmt.Errorf("new calendar service: %w", err)
+	}
+	return svc, nil
 }
