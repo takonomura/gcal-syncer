@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"golang.org/x/oauth2/google"
@@ -23,11 +24,24 @@ func main() {
 		UpdateConcurrency: 10,
 	}
 
+	now := time.Now()
 	if env := os.Getenv("GCAL_SYNCER_TIME_MIN"); env != "" {
 		s.TimeMin = env
+	} else if env := os.Getenv("GCAL_SYNCER_RELATIVE_MIN"); env != "" {
+		d, err := time.ParseDuration(env)
+		if err != nil {
+			log.Fatalf("failed to parse GCAL_SYNCER_RELATIVE_MIN: %+v", err)
+		}
+		s.TimeMin = now.Add(d).Format(time.RFC3339)
 	}
 	if env := os.Getenv("GCAL_SYNCER_TIME_MAX"); env != "" {
 		s.TimeMax = env
+	} else if env := os.Getenv("GCAL_SYNCER_RELATIVE_MAX"); env != "" {
+		d, err := time.ParseDuration(env)
+		if err != nil {
+			log.Fatalf("failed to parse GCAL_SYNCER_RELATIVE_MAX: %+v", err)
+		}
+		s.TimeMax = now.Add(d).Format(time.RFC3339)
 	}
 
 	if err := json.Unmarshal([]byte(os.Getenv("GCAL_SYNCER_CONFIG")), &s.Config); err != nil {
