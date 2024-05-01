@@ -3,11 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"golang.org/x/oauth2/google"
@@ -18,25 +20,70 @@ import (
 func main() {
 	ctx := context.Background()
 
-	var config Config
-	if err := json.Unmarshal([]byte(os.Getenv("GCAL_SYNCER_CONFIG")), &config); err != nil {
-		log.Fatalf("loading config: %+v", err)
+	s := &Syncer{
+		UpdateConcurrency: 10,
 	}
 
-	concurrency := int64(10)
+	now := time.Now()
+	if env := os.Getenv("GCAL_SYNCER_TIME_MIN"); env != "" {
+		s.TimeMin = env
+	} else if env := os.Getenv("GCAL_SYNCER_RELATIVE_MIN"); env != "" {
+		d, err := time.ParseDuration(env)
+		if err != nil {
+			log.Fatalf("failed to parse GCAL_SYNCER_RELATIVE_MIN: %+v", err)
+		}
+		s.TimeMin = now.Add(d).Format(time.RFC3339)
+	}
+	if env := os.Getenv("GCAL_SYNCER_TIME_MAX"); env != "" {
+		s.TimeMax = env
+	} else if env := os.Getenv("GCAL_SYNCER_RELATIVE_MAX"); env != "" {
+		d, err := time.ParseDuration(env)
+		if err != nil {
+			log.Fatalf("failed to parse GCAL_SYNCER_RELATIVE_MAX: %+v", err)
+		}
+		s.TimeMax = now.Add(d).Format(time.RFC3339)
+	}
+
+	if err := json.Unmarshal([]byte(os.Getenv("GCAL_SYNCER_CONFIG")), &s.Config); err != nil {
+		log.Fatalf("failed to parse config: %+v", err)
+	}
+
 	if env := os.Getenv("GCAL_SYNCER_UPDATE_CONCURRENCY"); env != "" {
 		i, err := strconv.ParseInt(env, 10, 64)
 		if err != nil {
 			log.Fatalf("parsing update concurrency: %+v", err)
 		}
-		concurrency = i
+		s.UpdateConcurrency = i
 	}
 
 	log.Printf("connecting to Google")
+	svc, err := NewCalendarService(ctx)
+	if err != nil {
+		log.Fatalf("failed to prepare calendar service: %+v", err)
+	}
+	s.Service = svc
 
+	log.Printf("syncing calendars")
+	err = s.Sync(ctx)
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+type retryClientLogger struct{}
+
+func (l *retryClientLogger) Printf(format string, v ...interface{}) {
+	if strings.HasPrefix(format, "[DEBUG] ") {
+		// Do not print debug logs
+		return
+	}
+	log.Printf(format, v...)
+}
+
+func NewCalendarService(ctx context.Context) (*calendar.Service, error) {
 	client, err := google.DefaultClient(ctx, calendar.CalendarEventsScope)
 	if err != nil {
-		log.Fatalf("preparing google client: %+v", err)
+		return nil, fmt.Errorf("default google client: %w", err)
 	}
 
 	retryClient := retryablehttp.NewClient()
@@ -52,29 +99,7 @@ func main() {
 
 	svc, err := calendar.NewService(ctx, option.WithHTTPClient(retryClient.StandardClient()))
 	if err != nil {
-		log.Fatalf("preparing calendar service: %+v", err)
+		return nil, fmt.Errorf("new calendar service: %w", err)
 	}
-
-	s := &Syncer{
-		Service:           svc,
-		Config:            config,
-		TimeMin:           os.Getenv("GCAL_SYNCER_TIME_MIN"),
-		TimeMax:           os.Getenv("GCAL_SYNCER_TIME_MAX"),
-		UpdateConcurrency: concurrency,
-	}
-
-	err = s.Sync(ctx)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
-type retryClientLogger struct{}
-
-func (l *retryClientLogger) Printf(format string, v ...interface{}) {
-	if strings.HasPrefix(format, "[DEBUG] ") {
-		// Do not print debug logs
-		return
-	}
-	log.Printf(format, v...)
+	return svc, nil
 }
