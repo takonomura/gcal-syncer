@@ -6,11 +6,11 @@ require (
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	golang.org/x/oauth2 v0.23.0
 	golang.org/x/sync v0.8.0
-	google.golang.org/api v0.202.0
+	google.golang.org/api v0.203.0
 )
 
 require (
-	cloud.google.com/go/auth v0.9.8 // indirect
+	cloud.google.com/go/auth v0.9.9 // indirect
 	cloud.google.com/go/auth/oauth2adapt v0.2.4 // indirect
 	cloud.google.com/go/compute/metadata v0.5.2 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
