@@ -1,4 +1,4 @@
-FROM docker.io/library/golang:1.23.4-alpine@sha256:9bfa54e3a85920df66ecf1c4979dfdf88baa80ca9752adda442713863087ef18 AS build
+FROM docker.io/library/golang:1.23.4-alpine@sha256:6c5c9590f169f77c8046e45c611d3b28fe477789acd8d3762d23d4744de69812 AS build
 
 RUN apk add --no-cache ca-certificates && update-ca-certificates
 
