@@ -6,7 +6,7 @@ toolchain go1.24.2
 
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.7
-	golang.org/x/oauth2 v0.28.0
+	golang.org/x/oauth2 v0.29.0
 	golang.org/x/sync v0.12.0
 	google.golang.org/api v0.228.0
 )
