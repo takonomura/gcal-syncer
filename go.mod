@@ -4,7 +4,7 @@ go 1.25.4
 
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
-	golang.org/x/oauth2 v0.32.0
+	golang.org/x/oauth2 v0.33.0
 	golang.org/x/sync v0.17.0
 	google.golang.org/api v0.255.0
 )
