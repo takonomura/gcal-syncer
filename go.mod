@@ -1,6 +1,6 @@
 module github.com/takonomura/gcal-syncer
 
-go 1.25.6
+go 1.25.7
 
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
